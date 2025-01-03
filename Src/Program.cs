@@ -10,11 +10,7 @@ builder.ConfigureFunctionsWebApplication();
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<GeminiApi>();
 
-builder.Services.AddLogging(loggingBuilder => {
-    loggingBuilder.AddConsole();
-    loggingBuilder.AddDebug();
-    // Add other logging providers as needed
-});
+builder.Logging.AddConsole();
 
 // Application Insights isn't enabled by default. See https://aka.ms/AAt8mw4.
 // builder.Services

@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Http;
@@ -11,6 +12,7 @@ namespace ProximoTurno.ManualDoJogo.Services;
 public class GeminiApi {
     public const string BASE_URL = "https://generativelanguage.googleapis.com";
     public const string MODEL = "models/gemini-1.5-flash-002";
+    // public const string MODEL = "models/gemini-2.0-flash-exp";
 
     private readonly HttpClient _httpClient;
     private readonly string _apiKey;
@@ -20,6 +22,65 @@ public class GeminiApi {
         _logger = logger;
         _httpClient = httpClientFactory.CreateClient();
         _apiKey = configuration["GOOGLE_API_KEY"] ?? "";
+    }
+
+    public async Task<List<ModelDTO>> ListModels() {
+        _logger.LogInformation($"Listando models");
+        var response = await _httpClient.GetAsync($"{BASE_URL}/v1beta/models?key={_apiKey}");
+        var responseBody = await response.Content.ReadAsStringAsync();
+        if (response.IsSuccessStatusCode) {
+            var responseModels = JsonSerializer.Deserialize<ListModelDTO>(responseBody, new JsonSerializerOptions() {
+                PropertyNameCaseInsensitive = true
+            });
+            if (responseModels != null) {
+                return responseModels.Models ?? new List<ModelDTO>();
+            } else {
+                throw new Exception("Models not found in list models response");
+            }
+        } else {
+            throw new Exception("Failed to list models");
+        }
+    }
+
+    public async Task<CachedContentDTO?> GetCache(string name) {
+        _logger.LogInformation($"Buscando cache {name}");
+        var response = await _httpClient.GetAsync($"{BASE_URL}/v1beta/cachedContents/{name}?key={_apiKey}");
+        var responseBody = await response.Content.ReadAsStringAsync();
+        if (response.IsSuccessStatusCode) {
+            var cache = JsonSerializer.Deserialize<CachedContentDTO>(responseBody, new JsonSerializerOptions() {
+                PropertyNameCaseInsensitive = true
+            });
+            if (cache is not null) {
+                return cache;
+            } else {
+                throw new Exception("Cache not found in get cache response");
+            }
+        } else if ((int)response.StatusCode != 500) {
+            return null;
+        } else {
+            throw new Exception("Failed to get cache");
+        }
+    }
+
+    public async Task<List<CachedContentDTO>> ListCaches(string game) {
+        _logger.LogInformation($"Listando caches");
+        var response = await _httpClient.GetAsync($"{BASE_URL}/v1beta/cachedContents?key={_apiKey}");
+        var responseBody = await response.Content.ReadAsStringAsync();
+        if (response.IsSuccessStatusCode) {
+            var caches = JsonSerializer.Deserialize<ListCachedContentDTO>(responseBody, new JsonSerializerOptions() {
+                PropertyNameCaseInsensitive = true
+            });
+            if (caches is not null) {
+                return (caches.CachedContents ?? new List<CachedContentDTO>())
+                    .Where(c => string.Compare(c.DisplayName, game, StringComparison.InvariantCultureIgnoreCase) == 0)
+                    .ToList();
+
+            } else {
+                throw new Exception("Não foi possível interpretar a resposta dos caches");
+            }
+        } else {
+            throw new Exception("Falha ao tentar listar caches");
+        }
     }
 
     public async Task<HttpResponseMessage> SendQuestion(GeminiRequestDTO request) {
@@ -32,11 +93,11 @@ public class GeminiApi {
         return await _httpClient.PostAsync($"{BASE_URL}/v1beta/{MODEL}:generateContent?key={_apiKey}", payload);
     }
 
-    public async Task<FileDTO> SendPdf(string pdfUrl) {
-        var fileName = Path.GetFileName(pdfUrl);
-        var response = await _httpClient.GetAsync(pdfUrl);
+    public async Task<FileDTO> SendPdf(FileDTO file) {
+        _logger.LogInformation($"Downloading PDF from {file.Uri}");
+        var response = await _httpClient.GetAsync(file.Uri);
         if (!response.IsSuccessStatusCode) {
-            _logger.LogError($"Error downloading PDF from {pdfUrl}");
+            _logger.LogError($"Error downloading PDF from {file.Uri}");
             throw new Exception("Failed to download PDF");
         }
 
@@ -51,7 +112,7 @@ public class GeminiApi {
         var payload = new StringContent(JsonSerializer.Serialize(
             new {
                 file = new {
-                    display_name = fileName
+                    display_name = file.Name
                 }
             }
         ));
@@ -95,10 +156,12 @@ public class GeminiApi {
 
     }
 
-    public async Task<string> SaveFilesToCache(List<FileDTO> filesUri) {
+    public async Task<string> SaveFilesToCache(string displayName, List<FileDTO> files) {
         var cacheRequest = new CacheContentDTO() {
             Model = MODEL,
-            Contents = filesUri.Select(file => new ContentDTO() {
+            DisplayName = displayName,
+            //Name = $"cachedContents/{name}",//NAO setar, gerado automaticamente pelo google
+            Contents = files.Select(file => new ContentDTO() {
                 Parts = new List<PartDTO>(){
                     new PartDTO(){
                         FileData = new FileData(){
@@ -112,12 +175,12 @@ public class GeminiApi {
             SystemInstruction = new ContentDTO() {
                 Parts = new List<PartDTO>(){
                     new PartDTO(){
-                        Text = "Você é um experte em regras de jogos de tabuleiro. Um grupo de amigos estão jogando e lhe enviaram os pdfs com todas as regras do jogo. Ajude-os com qualquer dúvida sobre o jogo."
+                        Text = "Você é um especialista em regras de jogos de tabuleiro. Um grupo de amigos estão jogando e lhe enviaram os pdfs com todas as regras do jogo. Ajude-os com qualquer dúvida sobre o jogo."
                     }
                 },
                 Role = "system"
             },
-            ExpireTime = DateTime.UtcNow.AddDays(1).ToString("yyyy-MM-ddTHH:mm:ssZ")
+            ExpireTime = DateTime.UtcNow.AddDays(2).ToString("yyyy-MM-ddTHH:mm:ssZ")
         };
 
         var payload = new StringContent(
@@ -139,8 +202,7 @@ public class GeminiApi {
                 throw new Exception("Name not found in cache response");
             }
         } else {
-
-            throw new Exception("Failed to create cache");
+            throw new Exception($"Failed to create cache. Detalhes: {responseBody}");
         }
     }
 

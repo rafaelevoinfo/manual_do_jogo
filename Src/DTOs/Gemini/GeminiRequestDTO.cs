@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace ProximoTurno.ManualDoJogo.DTOs;
+namespace ProximoTurno.ManualDoJogo.DTOs.Gemini;
 
 public class GeminiRequestDTO {
     public List<ContentDTO> Contents { get; set; } = null!;
