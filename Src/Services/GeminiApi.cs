@@ -76,10 +76,12 @@ public class GeminiApi {
                     .ToList();
 
             } else {
+                _logger.LogError($"Não foi possível interpretar a resposta dos caches. Detalhes: {responseBody}");
                 throw new Exception("Não foi possível interpretar a resposta dos caches");
             }
         } else {
-            throw new Exception("Falha ao tentar listar caches");
+            _logger.LogError($"Falha ao tentar listar caches. Detalhes: {responseBody}");
+            throw new Exception("Falha ao tentar listar caches.");
         }
     }
 
@@ -156,12 +158,27 @@ public class GeminiApi {
 
     }
 
-    public async Task<string> SaveFilesToCache(string displayName, List<FileDTO> files) {
+    public async Task<string> CreateCache(string displayName, ContentDTO systemInstruction, List<FileDTO> files) {
+        if (files.Count == 0) {
+            throw new Exception("Nenhum arquivo foi informado para salvar no cache");
+        }
+        if (systemInstruction is null) {
+            throw new Exception("Instrução do sistema não informada");
+        }
+
+        var uploadedFiles = new List<FileDTO>();
+        foreach (var file in files) {
+            if (!string.IsNullOrWhiteSpace(file.Uri)) {
+                var uploadFile = await SendPdf(file);
+                uploadedFiles.Add(uploadFile);
+            }
+        }
+
         var cacheRequest = new CacheContentDTO() {
             Model = MODEL,
             DisplayName = displayName,
             //Name = $"cachedContents/{name}",//NAO setar, gerado automaticamente pelo google
-            Contents = files.Select(file => new ContentDTO() {
+            Contents = uploadedFiles.Select(file => new ContentDTO() {
                 Parts = new List<PartDTO>(){
                     new PartDTO(){
                         FileData = new FileData(){
@@ -172,14 +189,7 @@ public class GeminiApi {
                 },
                 Role = "user",
             }).ToList(),
-            SystemInstruction = new ContentDTO() {
-                Parts = new List<PartDTO>(){
-                    new PartDTO(){
-                        Text = "Você é um especialista em regras de jogos de tabuleiro. Um grupo de amigos estão jogando e lhe enviaram os pdfs com todas as regras do jogo. Ajude-os com qualquer dúvida sobre o jogo."
-                    }
-                },
-                Role = "system"
-            },
+            SystemInstruction = systemInstruction,
             ExpireTime = DateTime.UtcNow.AddDays(2).ToString("yyyy-MM-ddTHH:mm:ssZ")
         };
 
@@ -189,6 +199,8 @@ public class GeminiApi {
                 DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
             })
         );
+        _logger.LogInformation($"Criando cache");
+        _logger.LogInformation(await payload.ReadAsStringAsync());
         var response = await _httpClient.PostAsync($"{BASE_URL}/v1beta/cachedContents?key={_apiKey}", payload);
         var responseBody = await response.Content.ReadAsStringAsync();
         if (response.IsSuccessStatusCode) {
