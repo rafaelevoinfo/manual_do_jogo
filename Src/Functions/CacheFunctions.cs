@@ -42,16 +42,24 @@ public class CacheFunctions : BaseFunction {
     [OpenApiParameter("game", In = ParameterLocation.Query)]
     [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(List<CachedContentDTO>),
             Description = "Lista de caches salvos")]
-    public async Task<IActionResult> List([HttpTrigger(AuthorizationLevel.Function, "get")] HttpRequest req) {
+    public async Task<IResult> List([HttpTrigger(AuthorizationLevel.Function, "get")] HttpRequest req) {
         _logger.LogInformation("List Cache request received.");
-        if (req.Query.TryGetValue("game", out var game)) {
-            var caches = await _api.ListCaches(game.FirstOrDefault() ?? "");
-            return new OkObjectResult(caches);
-        } else {
-            return new BadRequestObjectResult("Nome do jogo não informado");
-        }
+        req.Query.TryGetValue("game", out var game);
+        var caches = await _api.ListCaches(game.FirstOrDefault() ?? "");
+        return Results.Ok(caches);
     }
 
+    [Function("delete-cache")]
+    [OpenApiOperation(operationId: "Delete")]
+    [OpenApiParameter("name", In = ParameterLocation.Path, Required = true)]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(string))]
+    public async Task<IResult> Delete([HttpTrigger(AuthorizationLevel.Function, "delete", Route = "delete-cache/{name}")] HttpRequest req, string name) {
+        if (await _api.DeleteCache(name)) {
+            return Results.Ok();
+        } else {
+            return Results.BadRequest("Não foi possível deletar o cache");
+        }
+    }
 
 
 

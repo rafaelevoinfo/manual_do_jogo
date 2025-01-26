@@ -62,7 +62,7 @@ public class GeminiApi {
         }
     }
 
-    public async Task<List<CachedContentDTO>> ListCaches(string game) {
+    public async Task<List<CachedContentDTO>> ListCaches(string? game) {
         _logger.LogInformation($"Listando caches");
         var response = await _httpClient.GetAsync($"{BASE_URL}/v1beta/cachedContents?key={_apiKey}");
         var responseBody = await response.Content.ReadAsStringAsync();
@@ -71,6 +71,9 @@ public class GeminiApi {
                 PropertyNameCaseInsensitive = true
             });
             if (caches is not null) {
+                if (string.IsNullOrWhiteSpace(game)) {
+                    return caches.CachedContents ?? new List<CachedContentDTO>();
+                }
                 return (caches.CachedContents ?? new List<CachedContentDTO>())
                     .Where(c => string.Compare(c.DisplayName, game, StringComparison.InvariantCultureIgnoreCase) == 0)
                     .ToList();
@@ -82,6 +85,20 @@ public class GeminiApi {
         } else {
             _logger.LogError($"Falha ao tentar listar caches. Detalhes: {responseBody}");
             throw new Exception("Falha ao tentar listar caches.");
+        }
+    }
+
+    public async Task<bool> DeleteCache(string name) {
+        var cacheName = WebUtility.UrlDecode(name);
+        _logger.LogInformation($"Deletando o cache {cacheName}");
+        var response = await _httpClient.DeleteAsync($"{BASE_URL}/v1beta/{cacheName}?key={_apiKey}");
+
+        if (response.IsSuccessStatusCode) {
+            return true;
+        } else {
+            var responseBody = await response.Content.ReadAsStringAsync();
+            _logger.LogError($"Falha ao tentar excluir o cache {cacheName}. Detalhes: {responseBody}");
+            return false;
         }
     }
 
