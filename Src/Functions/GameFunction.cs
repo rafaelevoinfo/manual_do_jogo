@@ -20,6 +20,18 @@ public class GameFunctions {
 
     }
 
+    [Function("count-games")]
+    [OpenApiOperation(operationId: "CountGames")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(GamesTotalDTO), Description = "Quantidade de jogos cadastrados")]
+    public async Task<IResult> CountGames([HttpTrigger(AuthorizationLevel.Function, "get", Route = "count-games")] HttpRequest req) {
+        try {
+            var count = await _databaseApi.CountGames();
+            return Results.Ok(count);
+        } catch (Exception ex) {
+            return Results.Problem(ex.Message, null, 500);
+        }
+    }
+
     [Function("list-games")]
     [OpenApiOperation(operationId: "ListGames")]
     [OpenApiParameter("gameId", In = ParameterLocation.Query, Required = false)]
@@ -28,11 +40,12 @@ public class GameFunctions {
         [HttpTrigger(AuthorizationLevel.Function, "get", Route = "list-games")] HttpRequest req) {
         try {
             req.Query.TryGetValue("gameId", out var gameId);
-            var games = await _databaseApi.List(gameId);
-            if (games is null) {
-                return Results.Problem("Não foi possível realizar a busca.", null, 500);
+            req.Query.TryGetValue("page", out var page);
+            if (!int.TryParse(page.FirstOrDefault(), out var pageNumber)) {
+                pageNumber = 1;
             }
-            return Results.Ok(games);
+            var games = await _databaseApi.List(gameId, pageNumber, 5);
+            return Results.Ok(games ?? new List<GameDTO>());
 
         } catch (Exception ex) {
             return Results.Problem(ex.Message, null, 500);
