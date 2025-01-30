@@ -94,11 +94,10 @@ public class ChatFunctions : BaseFunction {
         try {
             var cacheName = await SearchForCache(gameId);
             if (string.IsNullOrWhiteSpace(cacheName)) {
-                var games = await _databaseApi.List(gameId);
-                if (games is null || games.Count == 0) {
+                var game = await _databaseApi.Get(gameId);
+                if (game is null) {
                     return Results.BadRequest("Jogo não encontrado");
                 }
-                var game = games.First();
                 var systemInstruction = new ContentDTO() {
                     Parts = new List<PartDTO>(){
                     new PartDTO(){

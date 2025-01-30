@@ -13,7 +13,7 @@ public class DatabaseApi {
     private Container _container = null!;
     private static DatabaseApi _instance = null!;
     private ILogger<DatabaseApi> _logger;
-    private const int ITEMS_PER_PAGE = 5;
+    public const int ITEMS_PER_PAGE = 5;
 
     public DatabaseApi(ILogger<DatabaseApi> logger, IConfiguration configuration) {
         _logger = logger;
@@ -66,12 +66,22 @@ public class DatabaseApi {
         };
     }
 
-    public async Task<List<GameDTO>?> List(string? idOfGame, int page = 1, int pageSize = ITEMS_PER_PAGE) {
+    public async Task<GameDTO?> Get(string gameId) {
+        try {
+            ItemResponse<GameDTO> gameResponse = await _container.ReadItemAsync<GameDTO>(gameId, new PartitionKey(gameId));
+            return gameResponse.Resource;
+        } catch (Exception e) {
+            _logger.LogDebug($"Jogo {gameId} não encontrado. Detalhes: {e.Message}");
+        }
+        return null;
+    }
+
+    public async Task<List<GameDTO>?> List(string? gameTitle, int page = 1, int pageSize = ITEMS_PER_PAGE) {
         var games = new List<GameDTO>();
         try {
             var query = new StringBuilder("SELECT * FROM games");
-            if (!string.IsNullOrWhiteSpace(idOfGame)) {
-                query.Append($" where games.id like '%{idOfGame}%' ");
+            if (!string.IsNullOrWhiteSpace(gameTitle)) {
+                query.Append($" where LOWER(games.title) like '%{gameTitle.ToLower()}%' ");
             }
             query.Append(" ORDER BY games.title");
             query.Append($" OFFSET {(page - 1) * 5} LIMIT {pageSize}");

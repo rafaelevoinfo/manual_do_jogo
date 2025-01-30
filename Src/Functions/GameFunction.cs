@@ -34,17 +34,23 @@ public class GameFunctions {
 
     [Function("list-games")]
     [OpenApiOperation(operationId: "ListGames")]
-    [OpenApiParameter("gameId", In = ParameterLocation.Query, Required = false)]
+    [OpenApiParameter("gameTitle", In = ParameterLocation.Query, Required = false)]
+    [OpenApiParameter("page", In = ParameterLocation.Query, Required = false)]
+    [OpenApiParameter("itemsPerPage", In = ParameterLocation.Query, Required = false)]
     [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(List<GameDTO>), Description = "Lista de jogos salvos")]
     public async Task<IResult> ListGames(
         [HttpTrigger(AuthorizationLevel.Function, "get", Route = "list-games")] HttpRequest req) {
         try {
-            req.Query.TryGetValue("gameId", out var gameId);
+            req.Query.TryGetValue("gameTitle", out var gameTitle);
             req.Query.TryGetValue("page", out var page);
             if (!int.TryParse(page.FirstOrDefault(), out var pageNumber)) {
                 pageNumber = 1;
             }
-            var games = await _databaseApi.List(gameId, pageNumber, 5);
+            req.Query.TryGetValue("itemsPerPage", out var itemsPerPageStr);
+            if (!int.TryParse(itemsPerPageStr.FirstOrDefault(), out var itemsPerPage)) {
+                itemsPerPage = DatabaseApi.ITEMS_PER_PAGE;
+            }
+            var games = await _databaseApi.List(gameTitle, pageNumber, itemsPerPage);
             return Results.Ok(games ?? new List<GameDTO>());
 
         } catch (Exception ex) {

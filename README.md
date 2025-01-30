@@ -22,7 +22,3 @@ The following technologies were used to create this project:
 After finished development run  
 >func azure functionapp publish ManualDoJogo
 
-
-## Improvements needed
-
-- Implement game list pagination
