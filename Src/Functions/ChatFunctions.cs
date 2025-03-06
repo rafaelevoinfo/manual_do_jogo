@@ -35,13 +35,22 @@ public class ChatFunctions : BaseFunction {
     }
 
 
-    [Function("send-message")]
-    [OpenApiOperation(operationId: "SendMessage")]
+    [Function("chat")]
+    [OpenApiOperation(operationId: "chat")]
     [OpenApiRequestBody("application/json", typeof(MessageRequestDTO))]
     [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(string))]
-    public async Task<IResult> SendMessage([HttpTrigger(AuthorizationLevel.Function, "post", Route = "chat")] HttpRequest req) {
+    public async Task<IResult> Chat([HttpTrigger(AuthorizationLevel.Function, ["post", "options"], Route = "chat")] HttpRequest req) {
+        if (req.Method == "OPTIONS") {
+            var response = req.HttpContext.Response;
+            response.Headers.Append("Access-Control-Allow-Origin", "*");
+            response.Headers.Append("Access-Control-Allow-Methods", "POST, OPTIONS");
+            response.Headers.Append("Access-Control-Allow-Headers", "Content-Type, Authorization");
+            response.Headers.Append("Access-Control-Max-Age", "86400");
+            return Results.NoContent();
+        }
         _logger.LogInformation("Enviando mensagem");
         try {
+            _logger.LogInformation("Headers: {headers}", string.Join(", ", req.Headers.Select(h => $"{h.Key}: {h.Value}")));
             var message = await req.ReadFromJsonAsync<MessageRequestDTO>();
             if (message is null) {
                 return Results.BadRequest("Requisição inválida.");
