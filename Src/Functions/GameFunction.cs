@@ -83,5 +83,18 @@ public class GameFunctions {
         }
     }
 
+    [Function("get-game")]
+    [OpenApiOperation(operationId: "GetGame")]
+    [OpenApiParameter("gameId", In = ParameterLocation.Query, Required = true)]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(string))]
+    public async Task<IResult> GetGame([HttpTrigger(AuthorizationLevel.Function, "get", Route = "get-game/{gameId?}")] HttpRequest req, string gameId) {
+        var game = await _databaseApi.Get(gameId);
+        if (game is not null) {
+            return Results.Ok(game);
+        } else {
+            return Results.NotFound("Não foi possível encontrar o jogo");
+        }
+    }
+
 
 }
