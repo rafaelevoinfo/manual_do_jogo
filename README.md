@@ -17,6 +17,10 @@ The following technologies were used to create this project:
 - COSMO_ENDPOINT_URI
 - COSMO_PRIMARY_KEY
 
+## How to run locally
+Execute
+> func host start
+
 ## How to uplod new versions
 
 After finished development run  
